@@ -1,0 +1,9 @@
+apiVersion: core.free5gc.org/v1alpha1
+kind: Free5GC
+metadata:
+  labels:
+    app.kubernetes.io/name: free5gs-k8s
+    app.kubernetes.io/managed-by: kustomize
+  name: free5gc-sample
+spec:
+  # TODO(user): Add fields here

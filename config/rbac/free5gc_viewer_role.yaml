@@ -1,0 +1,23 @@
+# permissions for end users to view free5gcs.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: free5gs-k8s
+    app.kubernetes.io/managed-by: kustomize
+  name: free5gc-viewer-role
+rules:
+- apiGroups:
+  - core.free5gc.org
+  resources:
+  - free5gcs
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - core.free5gc.org
+  resources:
+  - free5gcs/status
+  verbs:
+  - get
