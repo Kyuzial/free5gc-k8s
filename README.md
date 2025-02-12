@@ -1,114 +1,210 @@
-# free5gs-k8s
-// TODO(user): Add simple overview of use/purpose
+# Free5GC Kubernetes Operator
 
-## Description
-// TODO(user): An in-depth paragraph about your project and overview of use
+This operator automates the deployment and management of Free5GC components in a Kubernetes cluster.
 
-## Getting Started
+## Features
 
-### Prerequisites
-- go version v1.22.0+
-- docker version 17.03+.
-- kubectl version v1.11.3+.
-- Access to a Kubernetes v1.11.3+ cluster.
+- Automated deployment of Free5GC components (AMF, SMF, UPF, etc.)
+- MongoDB database management
+- Network interface configuration for N2, N3, N4, and N6 interfaces
+- Support for UPF in ULCL mode
+- Automatic status tracking for all components
 
-### To Deploy on the cluster
-**Build and push your image to the location specified by `IMG`:**
+## Prerequisites
 
-```sh
-make docker-build docker-push IMG=<some-registry>/free5gs-k8s:tag
-```
+- Kubernetes cluster 1.19+
+- kubectl configured to communicate with your cluster
+- Multus CNI plugin installed for network interface management
 
-**NOTE:** This image ought to be published in the personal registry you specified.
-And it is required to have access to pull the image from the working environment.
-Make sure you have the proper permission to the registry if the above commands don’t work.
+## Installation
 
-**Install the CRDs into the cluster:**
-
-```sh
+1. Install the CRDs:
+```bash
 make install
 ```
 
-**Deploy the Manager to the cluster with the image specified by `IMG`:**
+2. Build and deploy the operator:
+```bash
+# Build the operator image
+make docker-build IMG=<your-registry>/free5gc-operator:v0.1.0
 
-```sh
-make deploy IMG=<some-registry>/free5gs-k8s:tag
+# Push the image to your registry
+make docker-push IMG=<your-registry>/free5gc-operator:v0.1.0
+
+# Deploy the operator to the cluster
+make deploy IMG=<your-registry>/free5gc-operator:v0.1.0
 ```
 
-> **NOTE**: If you encounter RBAC errors, you may need to grant yourself cluster-admin
-privileges or be logged in as admin.
+## Usage
 
-**Create instances of your solution**
-You can apply the samples (examples) from the config/sample:
+1. Create the necessary NetworkAttachmentDefinitions for Free5GC interfaces:
 
-```sh
-kubectl apply -k config/samples/
+```yaml
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: n2-net
+spec:
+  config: '{
+    "cniVersion": "0.3.1",
+    "type": "macvlan",
+    "master": "eth1",
+    "mode": "bridge",
+    "ipam": {
+      "type": "host-local",
+      "subnet": "10.100.50.0/24"
+    }
+  }'
 ```
 
->**NOTE**: Ensure that the samples has default values to test it out.
+2. Deploy Free5GC using the operator:
 
-### To Uninstall
-**Delete the instances (CRs) from the cluster:**
+```yaml
+apiVersion: core.free5gc.org/v1alpha1
+kind: Free5GC
+metadata:
+  name: free5gc-sample
+spec:
+  mongodb:
+    image: mongo:4.4
+    storage:
+      size: 1Gi
+      storageClassName: standard
 
-```sh
-kubectl delete -k config/samples/
+  network:
+    n2Network:
+      name: n2-net
+      interface: n2
+    n3Network:
+      name: n3-net
+      interface: n3
+    n4Network:
+      name: n4-net
+      interface: n4
+    n6Network:
+      name: n6-net
+      interface: n6
+
+  nrf:
+    image: free5gc/nrf:v3.2.0
+    replicas: 1
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
+
+  # Other components...
 ```
 
-**Delete the APIs(CRDs) from the cluster:**
+## Component Configuration
 
-```sh
-make uninstall
+### MongoDB
+
+MongoDB can be deployed either internally or externally:
+
+```yaml
+spec:
+  mongodb:
+    # Use external MongoDB
+    external: true
+    uri: "mongodb://external-mongodb:27017"
+    
+    # Or deploy MongoDB internally
+    external: false
+    image: mongo:4.4
+    storage:
+      size: 1Gi
+      storageClassName: standard
 ```
 
-**UnDeploy the controller from the cluster:**
+### UPF
 
-```sh
-make undeploy
+UPF can be deployed in standard mode or ULCL mode:
+
+```yaml
+spec:
+  # Standard UPF
+  upf:
+    image: free5gc/upf:v3.2.0
+    replicas: 1
+    config:
+      pfcp:
+        addr: upf.free5gc.org
+        nodeID: upf.free5gc.org
+        retransTimeout: 1s
+        maxRetrans: 3
+      gtpu:
+        forwarder: gtp5g
+        ifname: upfgtp
+
+  # Or ULCL-enabled UPF
+  upf:
+    image: free5gc/upf:v3.2.0
+    ulcl:
+      enabled: true
+      instances:
+        - name: upf1
+          image: free5gc/upf:v3.2.0
+        - name: upf2
+          image: free5gc/upf:v3.2.0
 ```
 
-## Project Distribution
+## Status
 
-Following are the steps to build the installer and distribute this project to users.
+The operator reports status for all components:
 
-1. Build the installer for the image built and published in the registry:
-
-```sh
-make build-installer IMG=<some-registry>/free5gs-k8s:tag
+```bash
+kubectl get free5gc free5gc-sample -o yaml
 ```
 
-NOTE: The makefile target mentioned above generates an 'install.yaml'
-file in the dist directory. This file contains all the resources built
-with Kustomize, which are necessary to install this project without
-its dependencies.
-
-2. Using the installer
-
-Users can just run kubectl apply -f <URL for YAML BUNDLE> to install the project, i.e.:
-
-```sh
-kubectl apply -f https://raw.githubusercontent.com/<org>/free5gs-k8s/<tag or branch>/dist/install.yaml
+```yaml
+status:
+  components:
+    amf:
+      phase: Running
+      readyReplicas: 1
+      replicas: 1
+    smf:
+      phase: Running
+      readyReplicas: 1
+      replicas: 1
+    # ...
+  mongodb:
+    phase: Running
+    readyReplicas: 1
+    replicas: 1
 ```
 
-## Contributing
-// TODO(user): Add detailed information on how you would like others to contribute to this project
+## Development
 
-**NOTE:** Run `make help` for more information on all potential `make` targets
+1. Clone the repository:
+```bash
+git clone https://github.com/your-org/free5gc-operator.git
+cd free5gc-operator
+```
 
-More information can be found via the [Kubebuilder Documentation](https://book.kubebuilder.io/introduction.html)
+2. Install the dependencies:
+```bash
+go mod download
+```
+
+3. Run the operator locally:
+```bash
+make run
+```
+
+4. Run tests:
+```bash
+# Unit tests
+make test
+
+# E2E tests
+make test-e2e
+```
 
 ## License
 
-Copyright 2025.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-
+This project is licensed under the Apache 2.0 License - see the [LICENSE](LICENSE) file for details.
