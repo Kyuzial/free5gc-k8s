@@ -21,9 +21,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
 // ComponentSpec defines the common configuration for Free5GC components
 type ComponentSpec struct {
 	// Image is the container image to use for the component
@@ -90,6 +87,69 @@ type NetworkAttachmentConfig struct {
 	StaticIP string `json:"staticIP,omitempty"`
 }
 
+// SBIConfig defines the Service Based Interface configuration
+type SBIConfig struct {
+	// Scheme (http/https)
+	Scheme string `json:"scheme,omitempty"`
+	// RegisterIPv4 address
+	RegisterIPv4 string `json:"registerIPv4,omitempty"`
+	// BindingIPv4 address
+	BindingIPv4 string `json:"bindingIPv4,omitempty"`
+	// Port number
+	Port int32 `json:"port,omitempty"`
+}
+
+// SNSSAIConfig defines the Single Network Slice Selection Assistance Information
+type SNSSAIConfig struct {
+	// Slice/Service Type
+	SST int32 `json:"sst,omitempty"`
+	// Slice Differentiator
+	SD string `json:"sd,omitempty"`
+}
+
+// NSIInformation defines the Network Slice Instance Information
+type NSIInformation struct {
+	// NRF ID
+	NRFID string `json:"nrfId,omitempty"`
+	// NSI ID
+	NSIID string `json:"nsiId,omitempty"`
+}
+
+// NSIConfig defines the Network Slice Instance configuration
+type NSIConfig struct {
+	// SNSSAI configuration
+	SNSSAI *SNSSAIConfig `json:"snssai,omitempty"`
+	// NSI Information List
+	NSIInformationList []NSIInformation `json:"nsiInformationList,omitempty"`
+}
+
+// NSSFConfig defines the NSSF-specific configuration
+type NSSFConfig struct {
+	// SBI configuration
+	SBI *SBIConfig `json:"sbi,omitempty"`
+	// NRF URI
+	NRFURI string `json:"nrfUri,omitempty"`
+	// Service Name List
+	ServiceNameList []string `json:"serviceNameList,omitempty"`
+	// NSI List
+	NSIList []NSIConfig `json:"nsiList,omitempty"`
+}
+
+// NSSFSpec defines the configuration for NSSF
+type NSSFSpec struct {
+	// Image is the container image to use for the component
+	Image string `json:"image"`
+	// Replicas is the number of replicas to deploy
+	// +optional
+	Replicas *int32 `json:"replicas,omitempty"`
+	// Resources specifies the compute resources for the component
+	// +optional
+	Resources corev1.ResourceRequirements `json:"resources,omitempty"`
+	// Config contains NSSF-specific configuration
+	// +optional
+	Config *NSSFConfig `json:"config,omitempty"`
+}
+
 // Free5GCSpec defines the desired state of Free5GC
 type Free5GCSpec struct {
 	// MongoDB configuration
@@ -118,7 +178,7 @@ type Free5GCSpec struct {
 
 	// NSSF (Network Slice Selection Function) configuration
 	// +optional
-	NSSF *ComponentSpec `json:"nssf,omitempty"`
+	NSSF *NSSFSpec `json:"nssf,omitempty"`
 
 	// PCF (Policy Control Function) configuration
 	// +optional
@@ -172,7 +232,14 @@ type StorageSpec struct {
 
 // UPFSpec defines the configuration for UPF
 type UPFSpec struct {
-	ComponentSpec `json:",inline"`
+	// Image is the container image to use for the component
+	Image string `json:"image"`
+	// Replicas is the number of replicas to deploy
+	// +optional
+	Replicas *int32 `json:"replicas,omitempty"`
+	// Resources specifies the compute resources for the component
+	// +optional
+	Resources corev1.ResourceRequirements `json:"resources,omitempty"`
 	// ULCL (Uplink Classifier) configuration
 	// +optional
 	ULCL *ULCLSpec `json:"ulcl,omitempty"`

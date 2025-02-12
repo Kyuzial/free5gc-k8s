@@ -28,6 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"sigs.k8s.io/yaml"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -256,12 +257,18 @@ func (r *Free5GCReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		"amf":    free5gc.Spec.AMF,
 		"smf":    free5gc.Spec.SMF,
 		"ausf":   free5gc.Spec.AUSF,
-		"nssf":   free5gc.Spec.NSSF,
 		"pcf":    free5gc.Spec.PCF,
 		"udm":    free5gc.Spec.UDM,
 		"udr":    free5gc.Spec.UDR,
 		"n3iwf":  free5gc.Spec.N3IWF,
 		"webui":  free5gc.Spec.WebUI,
+	}
+
+	// Reconcile NSSF separately due to its special configuration
+	if free5gc.Spec.NSSF != nil {
+		if err := r.reconcileNSSF(ctx, free5gc); err != nil {
+			return ctrl.Result{}, err
+		}
 	}
 
 	for component, spec := range components {
@@ -846,6 +853,201 @@ func (r *Free5GCReconciler) cleanupResources(ctx context.Context, free5gc *corev
 }
 
 // SetupWithManager sets up the controller with the Manager.
+func (r *Free5GCReconciler) reconcileNSSF(ctx context.Context, free5gc *corev1alpha1.Free5GC) error {
+	log := log.FromContext(ctx)
+
+	if free5gc.Spec.NSSF == nil {
+		return nil
+	}
+
+	// Create ConfigMap for NSSF configuration
+	cm := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s-nssf-config", free5gc.Name),
+			Namespace: free5gc.Namespace,
+		},
+	}
+
+	op, err := controllerutil.CreateOrUpdate(ctx, r.Client, cm, func() error {
+		if err := ctrl.SetControllerReference(free5gc, cm, r.Scheme); err != nil {
+			return err
+		}
+
+		config := free5gc.Spec.NSSF.Config
+		if config == nil {
+			config = &corev1alpha1.NSSFConfig{}
+		}
+
+		// Set default values if not provided
+		if config.SBI == nil {
+			config.SBI = &corev1alpha1.SBIConfig{
+				Scheme:      "http",
+				RegisterIPv4: fmt.Sprintf("%s-nssf-service", free5gc.Name),
+				BindingIPv4: "0.0.0.0",
+				Port:        80,
+			}
+		}
+
+		nssfConfig := map[string]interface{}{
+			"info": map[string]interface{}{
+				"version":     "1.0.2",
+				"description": "NSSF initial local configuration",
+			},
+			"configuration": map[string]interface{}{
+				"sbi": map[string]interface{}{
+					"scheme":       config.SBI.Scheme,
+					"registerIPv4": config.SBI.RegisterIPv4,
+					"bindingIPv4": config.SBI.BindingIPv4,
+					"port":        config.SBI.Port,
+				},
+				"serviceNameList": config.ServiceNameList,
+				"nrfUri":         config.NRFURI,
+				"nsiList":        config.NSIList,
+			},
+		}
+
+		configYaml, err := yaml.Marshal(nssfConfig)
+		if err != nil {
+			return fmt.Errorf("failed to marshal NSSF config: %w", err)
+		}
+
+		cm.Data = map[string]string{
+			"nssfcfg.yaml": string(configYaml),
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to reconcile NSSF ConfigMap: %w", err)
+	}
+	log.Info("Reconciled NSSF ConfigMap", "operation", op)
+
+	// Create NSSF deployment
+	deploy := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s-nssf", free5gc.Name),
+			Namespace: free5gc.Namespace,
+		},
+	}
+
+	op, err = controllerutil.CreateOrUpdate(ctx, r.Client, deploy, func() error {
+		if err := ctrl.SetControllerReference(free5gc, deploy, r.Scheme); err != nil {
+			return err
+		}
+
+		replicas := int32(1)
+		if free5gc.Spec.NSSF.Replicas != nil {
+			replicas = *free5gc.Spec.NSSF.Replicas
+		}
+
+		deploy.Spec = appsv1.DeploymentSpec{
+			Replicas: &replicas,
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app":       "free5gc",
+					"component": "nssf",
+				},
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"app":       "free5gc",
+						"component": "nssf",
+					},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:      "nssf",
+							Image:     free5gc.Spec.NSSF.Image,
+							Resources: free5gc.Spec.NSSF.Resources,
+							VolumeMounts: []corev1.VolumeMount{
+								{
+									Name:      "config",
+									MountPath: "/free5gc/config",
+								},
+							},
+							Env: []corev1.EnvVar{
+								{
+									Name: "POD_IP",
+									ValueFrom: &corev1.EnvVarSource{
+										FieldRef: &corev1.ObjectFieldSelector{
+											FieldPath: "status.podIP",
+										},
+									},
+								},
+							},
+						},
+					},
+					Volumes: []corev1.Volume{
+						{
+							Name: "config",
+							VolumeSource: corev1.VolumeSource{
+								ConfigMap: &corev1.ConfigMapVolumeSource{
+									LocalObjectReference: corev1.LocalObjectReference{
+										Name: fmt.Sprintf("%s-nssf-config", free5gc.Name),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to reconcile NSSF deployment: %w", err)
+	}
+	log.Info("Reconciled NSSF deployment", "operation", op)
+
+	// Create NSSF service
+	svc := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s-nssf-service", free5gc.Name),
+			Namespace: free5gc.Namespace,
+		},
+	}
+
+	op, err = controllerutil.CreateOrUpdate(ctx, r.Client, svc, func() error {
+		if err := ctrl.SetControllerReference(free5gc, svc, r.Scheme); err != nil {
+			return err
+		}
+
+		svc.Spec = corev1.ServiceSpec{
+			Selector: map[string]string{
+				"app":       "free5gc",
+				"component": "nssf",
+			},
+			Ports: []corev1.ServicePort{
+				{
+					Name:       "http",
+					Protocol:   corev1.ProtocolTCP,
+					Port:       80,
+					TargetPort: intstr.FromInt(80),
+				},
+			},
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to reconcile NSSF service: %w", err)
+	}
+	log.Info("Reconciled NSSF service", "operation", op)
+
+	// Update NSSF status
+	if err := r.updateComponentStatus(ctx, free5gc, "nssf"); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (r *Free5GCReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&corev1alpha1.Free5GC{}).
