@@ -198,6 +198,12 @@ func (r *Free5GCReconciler) updateComponentStatus(ctx context.Context, free5gc *
 // +kubebuilder:rbac:groups=core.free5gc.org,resources=free5gcs,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core.free5gc.org,resources=free5gcs/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=core.free5gc.org,resources=free5gcs/finalizers,verbs=update
+// +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="k8s.cni.cncf.io",resources=networkattachmentdefinitions,verbs=get;list;watch
 
 func (r *Free5GCReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
@@ -843,5 +849,8 @@ func (r *Free5GCReconciler) cleanupResources(ctx context.Context, free5gc *corev
 func (r *Free5GCReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&corev1alpha1.Free5GC{}).
+		Owns(&appsv1.Deployment{}).
+		Owns(&corev1.Service{}).
+		Owns(&corev1.PersistentVolumeClaim{}).
 		Complete(r)
 }

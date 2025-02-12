@@ -6,4 +6,141 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
   name: free5gc-sample
 spec:
-  # TODO(user): Add fields here
+  mongodb:
+    image: mongo:4.4
+    storage:
+      size: 1Gi
+      storageClassName: standard
+
+  network:
+    n2Network:
+      name: n2-net
+      interface: n2
+    n3Network:
+      name: n3-net
+      interface: n3
+    n4Network:
+      name: n4-net
+      interface: n4
+    n6Network:
+      name: n6-net
+      interface: n6
+
+  nrf:
+    image: free5gc/nrf:v3.2.0
+    replicas: 1
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
+
+  amf:
+    image: free5gc/amf:v3.2.0
+    replicas: 1
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
+
+  smf:
+    image: free5gc/smf:v3.2.0
+    replicas: 1
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
+
+  upf:
+    image: free5gc/upf:v3.2.0
+    replicas: 1
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
+    config:
+      pfcp:
+        addr: upf.free5gc.org
+        nodeID: upf.free5gc.org
+        retransTimeout: 1s
+        maxRetrans: 3
+      gtpu:
+        forwarder: gtp5g
+        ifname: upfgtp
+
+  ausf:
+    image: free5gc/ausf:v3.2.0
+    replicas: 1
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
+
+  nssf:
+    image: free5gc/nssf:v3.2.0
+    replicas: 1
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
+
+  pcf:
+    image: free5gc/pcf:v3.2.0
+    replicas: 1
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
+
+  udm:
+    image: free5gc/udm:v3.2.0
+    replicas: 1
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
+
+  udr:
+    image: free5gc/udr:v3.2.0
+    replicas: 1
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
+
+  webui:
+    image: free5gc/webui:v3.2.0
+    replicas: 1
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
