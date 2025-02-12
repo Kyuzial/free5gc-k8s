@@ -176,6 +176,39 @@ type UPFSpec struct {
 	// ULCL (Uplink Classifier) configuration
 	// +optional
 	ULCL *ULCLSpec `json:"ulcl,omitempty"`
+	// Config contains UPF-specific configuration
+	// +optional
+	Config *UPFConfig `json:"config,omitempty"`
+}
+
+// UPFConfig defines the UPF-specific configuration
+type UPFConfig struct {
+	// PFCP configuration
+	// +optional
+	PFCP *PFCPConfig `json:"pfcp,omitempty"`
+	// GTPU configuration
+	// +optional
+	GTPU *GTPUConfig `json:"gtpu,omitempty"`
+}
+
+// PFCPConfig defines the PFCP configuration
+type PFCPConfig struct {
+	// Address for PFCP
+	Addr string `json:"addr,omitempty"`
+	// Node ID for PFCP
+	NodeID string `json:"nodeID,omitempty"`
+	// Retransmission timeout
+	RetransTimeout string `json:"retransTimeout,omitempty"`
+	// Maximum retransmissions
+	MaxRetrans int32 `json:"maxRetrans,omitempty"`
+}
+
+// GTPUConfig defines the GTPU configuration
+type GTPUConfig struct {
+	// Forwarder type
+	Forwarder string `json:"forwarder,omitempty"`
+	// Interface name
+	IfName string `json:"ifname,omitempty"`
 }
 
 // ULCLSpec defines the configuration for ULCL
