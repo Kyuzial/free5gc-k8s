@@ -7,7 +7,7 @@ metadata:
   name: free5gc-sample
 spec:
   mongodb:
-    image: mongo:4.4
+    image: mongo:10.7.0
     storage:
       size: 1Gi
       storageClassName: standard

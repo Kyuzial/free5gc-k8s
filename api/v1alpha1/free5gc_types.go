@@ -64,6 +64,30 @@ type NetworkAttachmentConfig struct {
 	Name string `json:"name"`
 	// Interface is the name of the interface in the pod
 	Interface string `json:"interface"`
+	// Type is the type of network (ipvlan, macvlan)
+	// +optional
+	Type string `json:"type,omitempty"`
+	// Mode is the mode for ipvlan (l2, l3)
+	// +optional
+	Mode string `json:"mode,omitempty"`
+	// Master is the master interface for the network
+	// +optional
+	MasterInterface string `json:"masterInterface,omitempty"`
+	// Subnet is the subnet IP address
+	// +optional
+	Subnet string `json:"subnet,omitempty"`
+	// CIDR is the network CIDR
+	// +optional
+	CIDR string `json:"cidr,omitempty"`
+	// Gateway is the gateway IP address
+	// +optional
+	Gateway string `json:"gateway,omitempty"`
+	// ExcludeIP is the IP to exclude from allocation
+	// +optional
+	ExcludeIP string `json:"excludeIP,omitempty"`
+	// StaticIP is the static IP address to assign
+	// +optional
+	StaticIP string `json:"staticIP,omitempty"`
 }
 
 // Free5GCSpec defines the desired state of Free5GC
